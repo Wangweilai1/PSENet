@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import sys
 import torch
 import argparse
@@ -16,6 +17,7 @@ import models
 from util import Logger, AverageMeter
 import time
 import util
+from losses import lovaszloss
 
 def ohem_single(score, gt_text, training_mask):
     pos_num = (int)(np.sum(gt_text > 0.5)) - (int)(np.sum((gt_text > 0.5) & (training_mask <= 0.5)))
@@ -57,6 +59,7 @@ def ohem_batch(scores, gt_texts, training_masks):
     return selected_masks
 
 def dice_loss(input, target, mask):
+    smooth = 1.0 #add Laplace Smoothing avoid overfitting and easy training
     input = torch.sigmoid(input)
 
     input = input.contiguous().view(input.size()[0], -1)
@@ -67,9 +70,11 @@ def dice_loss(input, target, mask):
     target = target * mask
 
     a = torch.sum(input * target, 1)
-    b = torch.sum(input * input, 1) + 0.001
-    c = torch.sum(target * target, 1) + 0.001
-    d = (2 * a) / (b + c)
+    #b = torch.sum(input * input, 1) + 0.001
+    #c = torch.sum(target * target, 1) + 0.001
+    b = torch.sum(input * input, 1)
+    c = torch.sum(target * target, 1)
+    d = (2 * a + smooth) / (b + c + smooth)
     dice_loss = torch.mean(d)
     return 1 - dice_loss
 
@@ -136,6 +141,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
             kernel_i = kernels[:, i, :, :]
             gt_kernel_i = gt_kernels[:, i, :, :]
             loss_kernel_i = criterion(kernel_i, gt_kernel_i, selected_masks)
+            if i == 5: 
+                loss_kernel_i = loss_kernel_i * 1.3
             loss_kernels.append(loss_kernel_i)
         loss_kernel = sum(loss_kernels) / len(loss_kernels)
         
@@ -181,13 +188,19 @@ def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar
 
 def main(args):
     if args.checkpoint == '':
-        args.checkpoint = "checkpoints/ic15_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/ic15_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/SROIE19_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        args.checkpoint = "checkpoints/VAT_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/VIN_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/BusinessLicense_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
     if args.pretrain:
         if 'synth' in args.pretrain:
             args.checkpoint += "_pretrain_synth"
         else:
             args.checkpoint += "_pretrain_ic17"
-
+    elif args.resume:
+        args.checkpoint += "_pretrain_ic17"
+        
     print ('checkpoint path: %s'%args.checkpoint)
     print ('init lr: %.8f'%args.lr)
     print ('schedule: ', args.schedule)
@@ -231,8 +244,6 @@ def main(args):
         model = models.resnet50_aspp(pretrained=True, num_classes=kernel_num)
     elif args.arch == "resnet50_psp":
         model = models.resnet50_psp(pretrained=True, num_classes=kernel_num)
-    elif args.arch == "resnet50_dcn_lstm":
-        model = models.resnet50_dcn_lstm(pretrained=True, num_classes=kernel_num)
     
     model = torch.nn.DataParallel(model).cuda()
     
@@ -265,8 +276,10 @@ def main(args):
 
     for epoch in range(start_epoch, args.n_epoch):
         adjust_learning_rate(args, optimizer, epoch)
+        #lr = torch.optim.lr_scheduler.MultiStepLR(optimizer, args.schedule, gamma=0.1, last_epoch=start_epoch)
         print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.n_epoch, optimizer.param_groups[0]['lr']))
 
+        #train_loss, train_te_acc, train_ke_acc, train_te_iou, train_ke_iou = train(train_loader, model, lovaszloss, optimizer, epoch)
         train_loss, train_te_acc, train_ke_acc, train_te_iou, train_ke_iou = train(train_loader, model, dice_loss, optimizer, epoch)
         save_checkpoint({
                 'epoch': epoch + 1,
@@ -279,15 +292,15 @@ def main(args):
     logger.close()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Hyperparams')
+    parser = argparse.ArgumentParser(description='Hyper params')
     parser.add_argument('--arch', nargs='?', type=str, default='resnet50')
-    parser.add_argument('--img_size', nargs='?', type=int, default=640, 
+    parser.add_argument('--img_size', nargs='?', type=int, default=480, 
                         help='Height of the input image')
     parser.add_argument('--n_epoch', nargs='?', type=int, default=600, 
                         help='# of the epochs')
-    parser.add_argument('--schedule', type=int, nargs='+', default=[200, 400],
+    parser.add_argument('--schedule', type=int, nargs='+', default=[200, 400, 500],
                         help='Decrease learning rate at these epochs.')
-    parser.add_argument('--batch_size', nargs='?', type=int, default=16, 
+    parser.add_argument('--batch_size', nargs='?', type=int, default=32, 
                         help='Batch Size')
     parser.add_argument('--lr', nargs='?', type=float, default=1e-3, 
                         help='Learning Rate')

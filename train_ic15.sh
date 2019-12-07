@@ -1,0 +1,2 @@
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_ic15.py --pretrain ./loadmodel/ic15_res50_pretrain_ic17.pth.tar
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_vin.py --pretrain ./checkpoints/VIN_resnet50_bs_16_ep_600_pretrain_ic17/checkpoint.pth.tar

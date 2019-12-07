@@ -3,7 +3,9 @@ import math
 import torch.utils.model_zoo as model_zoo
 import torch.nn.functional as F
 import torch
+from groupnorm import GroupNorm
 
+USE_GN = False
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -13,7 +15,7 @@ model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
     'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3mb4d8f.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
 }
 
@@ -62,12 +64,21 @@ class Bottleneck(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
+        if USE_GN:
+            self.bn1 = GroupNorm(planes)
+        else:
+            self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
+        if USE_GN:
+            self.bn2 = GroupNorm(planes)
+        else:
+            self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
+        if USE_GN:
+            self.bn3 = GroupNorm(planes * 4)
+        else:
+            self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -102,7 +113,10 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        if USE_GN:
+            self.bn1 = GroupNorm(64)
+        else:
+            self.bn1 = nn.BatchNorm2d(64)
         self.relu1 = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
@@ -113,38 +127,62 @@ class ResNet(nn.Module):
         # self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         # Top layer
-        self.toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0)  # Reduce channels
-        self.toplayer_bn = nn.BatchNorm2d(256)
+        self.toplayer = nn.Conv2d(512 * block.expansion, 256, kernel_size=1, stride=1, padding=0)  # Reduce channels
+        if USE_GN:
+            self.toplayer_bn = GroupNorm(256)
+        else:
+            self.toplayer_bn = nn.BatchNorm2d(256)
         self.toplayer_relu = nn.ReLU(inplace=True)
 
         # Smooth layers
         self.smooth1 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
-        self.smooth1_bn = nn.BatchNorm2d(256)
+        if USE_GN:
+            self.smooth1_bn = GroupNorm(256)
+        else:
+            self.smooth1_bn = nn.BatchNorm2d(256)
         self.smooth1_relu = nn.ReLU(inplace=True)
 
         self.smooth2 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
-        self.smooth2_bn = nn.BatchNorm2d(256)
+        if USE_GN:
+            self.smooth2_bn = GroupNorm(256)
+        else:
+            self.smooth2_bn = nn.BatchNorm2d(256)
         self.smooth2_relu = nn.ReLU(inplace=True)
 
         self.smooth3 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
-        self.smooth3_bn = nn.BatchNorm2d(256)
+        if USE_GN:
+            self.smooth3_bn = GroupNorm(256)
+        else:
+            self.smooth3_bn = nn.BatchNorm2d(256)
         self.smooth3_relu = nn.ReLU(inplace=True)
 
         # Lateral layers
-        self.latlayer1 = nn.Conv2d(1024, 256, kernel_size=1, stride=1, padding=0)
-        self.latlayer1_bn = nn.BatchNorm2d(256)
+        self.latlayer1 = nn.Conv2d(256 * block.expansion, 256, kernel_size=1, stride=1, padding=0)
+        if USE_GN:
+            self.latlayer1_bn = GroupNorm(256)
+        else:
+            self.latlayer1_bn = nn.BatchNorm2d(256)
         self.latlayer1_relu = nn.ReLU(inplace=True)
 
-        self.latlayer2 = nn.Conv2d(512,  256, kernel_size=1, stride=1, padding=0)
-        self.latlayer2_bn = nn.BatchNorm2d(256)
+        self.latlayer2 = nn.Conv2d(128 * block.expansion,  256, kernel_size=1, stride=1, padding=0)
+        if USE_GN:
+            self.latlayer2_bn = GroupNorm(256)
+        else:
+            self.latlayer2_bn = nn.BatchNorm2d(256)
         self.latlayer2_relu = nn.ReLU(inplace=True)
 
-        self.latlayer3 = nn.Conv2d(256,  256, kernel_size=1, stride=1, padding=0)
-        self.latlayer3_bn = nn.BatchNorm2d(256)
+        self.latlayer3 = nn.Conv2d(64 * block.expansion,  256, kernel_size=1, stride=1, padding=0)
+        if USE_GN:
+            self.latlayer3_bn = GroupNorm(256)
+        else:
+            self.latlayer3_bn = nn.BatchNorm2d(256)
         self.latlayer3_relu = nn.ReLU(inplace=True)
 
         self.conv2 = nn.Conv2d(1024, 256, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(256)
+        if USE_GN:
+            self.bn2 = GroupNorm(256)
+        else:
+            self.bn2 = nn.BatchNorm2d(256)
         self.relu2 = nn.ReLU(inplace=True)
         self.conv3 = nn.Conv2d(256, num_classes, kernel_size=1, stride=1, padding=0)
 
@@ -155,6 +193,7 @@ class ResNet(nn.Module):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
             elif isinstance(m, nn.BatchNorm2d):
+            #elif isinstance(m, GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
@@ -164,6 +203,7 @@ class ResNet(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
+                #GroupNorm(planes * block.expansion),
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
@@ -176,12 +216,14 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def _upsample(self, x, y, scale=1):
-        _, _, H, W = y.size()
-        return F.upsample(x, size=(H // scale, W // scale), mode='bilinear')
+        #_, _, H, W = y.size()
+        #return F.upsample(x, size=(H // scale, W // scale), mode='bilinear')
+        return F.upsample(x, size=None, scale_factor=scale, mode='bilinear')
 
-    def _upsample_add(self, x, y):
-        _, _, H, W = y.size()
-        return F.upsample(x, size=(H, W), mode='bilinear') + y
+    def _upsample_add(self, x, y, scale=1):
+        #_, _, H, W = y.size()
+        #return F.upsample(x, size=(H, W), mode='bilinear') + y
+        return F.upsample(x, size=None, scale_factor=scale, mode='bilinear') + y
 
     def forward(self, x):
         h = x
@@ -205,32 +247,32 @@ class ResNet(nn.Module):
 
         c4 = self.latlayer1(c4)
         c4 = self.latlayer1_relu(self.latlayer1_bn(c4))
-        p4 = self._upsample_add(p5, c4)
+        p4 = self._upsample_add(p5, c4, 2)
         p4 = self.smooth1(p4)
         p4 = self.smooth1_relu(self.smooth1_bn(p4))
 
         c3 = self.latlayer2(c3)
         c3 = self.latlayer2_relu(self.latlayer2_bn(c3))
-        p3 = self._upsample_add(p4, c3)
+        p3 = self._upsample_add(p4, c3, 2)
         p3 = self.smooth2(p3)
         p3 = self.smooth2_relu(self.smooth2_bn(p3))        
 
         c2 = self.latlayer3(c2)
         c2 = self.latlayer3_relu(self.latlayer3_bn(c2))
-        p2 = self._upsample_add(p3, c2)
+        p2 = self._upsample_add(p3, c2, 2)
         p2 = self.smooth3(p2)
         p2 = self.smooth3_relu(self.smooth3_bn(p2))
 
-        p3 = self._upsample(p3, p2)
-        p4 = self._upsample(p4, p2)
-        p5 = self._upsample(p5, p2)
+        p3 = self._upsample(p3, p2, 2)
+        p4 = self._upsample(p4, p2, 4)
+        p5 = self._upsample(p5, p2, 8)
 
         out = torch.cat((p2, p3, p4, p5), 1)
         out = self.conv2(out)
         out = self.relu2(self.bn2(out))
         out = self.conv3(out)
-        out = self._upsample(out, x, scale=self.scale)
-
+        out = self._upsample(out, x, scale=4)
+        
         return out
 
 
@@ -242,7 +284,12 @@ def resnet18(pretrained=False, **kwargs):
     """
     model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        pretrained_model = model_zoo.load_url(model_urls['resnet18'])
+        state = model.state_dict()
+        for key in state.keys():
+            if key in pretrained_model.keys():
+                state[key] = pretrained_model[key]
+        model.load_state_dict(state)
     return model
 
 
@@ -254,7 +301,12 @@ def resnet34(pretrained=False, **kwargs):
     """
     model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
+        pretrained_model = model_zoo.load_url(model_urls['resnet34'])
+        state = model.state_dict()
+        for key in state.keys():
+            if key in pretrained_model.keys():
+                state[key] = pretrained_model[key]
+        model.load_state_dict(state)
     return model
 
 

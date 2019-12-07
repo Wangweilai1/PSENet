@@ -73,7 +73,7 @@ def test(args):
         data_loader,
         batch_size=1,
         shuffle=False,
-        num_workers=2,
+        num_workers=6,
         drop_last=True)
 
     # Setup Model
@@ -83,16 +83,36 @@ def test(args):
         model = models.resnet101(pretrained=True, num_classes=7, scale=args.scale)
     elif args.arch == "resnet152":
         model = models.resnet152(pretrained=True, num_classes=7, scale=args.scale)
-    
+    elif args.arch == "resnet34":
+        model = models.resnet34(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "resnet18":
+        model = models.resnet18(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "se_resnet_50":
+        model = models.se_resnet_50(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "se_resnext_50":
+        model = models.se_resnext_50(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "dcn_resnet50":
+        model = models.dcn_resnet50(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "resnet50_lstm":
+        model = models.resnet50_lstm(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "resnet50_psp":
+        model = models.resnet50_psp(pretrained=True, num_classes=7, scale=args.scale)
+    elif args.arch == "resnet50_dcn_lstm":
+        model = models.resnet50_dcn_lstm(pretrained=True, num_classes=7, scale=args.scale)
+
     for param in model.parameters():
         param.requires_grad = False
 
-    model = model.cuda()
+    if torch.cuda.is_available():
+        model = model.cuda()
     
     if args.resume is not None:                                         
         if os.path.isfile(args.resume):
             print("Loading model and optimizer from checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
+            if torch.cuda.is_available():
+                checkpoint = torch.load(args.resume)
+            else:
+                checkpoint = torch.load(args.resume, map_location="cpu")
             
             # model.load_state_dict(checkpoint['state_dict'])
             d = collections.OrderedDict()
@@ -116,15 +136,20 @@ def test(args):
         print('progress: %d / %d'%(idx, len(test_loader)))
         sys.stdout.flush()
 
-        img = Variable(img.cuda(), volatile=True)
+        if torch.cuda.is_available():
+            img = Variable(img.cuda(), volatile=True)
+        else:
+            img = Variable(img.cpu(), volatile=True)
         org_img = org_img.numpy().astype('uint8')[0]
         text_box = org_img.copy()
-
-        torch.cuda.synchronize()
+        
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         start = time.time()
 
         outputs = model(img)
-
+        print('model: %.5f'%(time.time() - start))
+        
         score = torch.sigmoid(outputs[:, 0, :, :])
         outputs = (torch.sign(outputs - args.binary_th) + 1) / 2
 
@@ -145,6 +170,7 @@ def test(args):
         label = pred
         label_num = np.max(label) + 1
         bboxes = []
+        bboxes2 = []
         for i in range(1, label_num):
             points = np.array(np.where(label == i)).transpose((1, 0))[:, ::-1]
 
@@ -158,20 +184,43 @@ def test(args):
             rect = cv2.minAreaRect(points)
             bbox = cv2.boxPoints(rect) * scale
             bbox = bbox.astype('int32')
-            bboxes.append(bbox.reshape(-1))
-
-        torch.cuda.synchronize()
+            bboxes1 = []
+            bboxes = bbox.reshape(-1)
+            if cv2.boxPoints(rect).astype('int32').reshape(-1)[0] < rect[0][0]:
+                bboxes1.append(bboxes[2])
+                bboxes1.append(bboxes[3])
+                bboxes1.append(bboxes[4])
+                bboxes1.append(bboxes[5])
+                bboxes1.append(bboxes[6])
+                bboxes1.append(bboxes[7])
+                bboxes1.append(bboxes[0])
+                bboxes1.append(bboxes[1])
+                bboxes2.append(bboxes1)
+            else:
+                bboxes1.append(bboxes[4])
+                bboxes1.append(bboxes[5])
+                bboxes1.append(bboxes[6])
+                bboxes1.append(bboxes[7])
+                bboxes1.append(bboxes[0])
+                bboxes1.append(bboxes[1])
+                bboxes1.append(bboxes[2])
+                bboxes1.append(bboxes[3])
+                bboxes2.append(bboxes1)
+                
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        print('Tot: %.5f'%(time.time() - start))
         end = time.time()
         total_frame += 1
         total_time += (end - start)
         print('fps: %.2f'%(total_frame / total_time))
         sys.stdout.flush()
 
-        for bbox in bboxes:
+        for bbox in np.array(bboxes2):
             cv2.drawContours(text_box, [bbox.reshape(4, 2)], -1, (0, 255, 0), 2)
 
         image_name = data_loader.img_paths[idx].split('/')[-1].split('.')[0]
-        write_result_as_txt(image_name, bboxes, 'outputs/submit_ic15/')
+        write_result_as_txt(image_name, np.array(bboxes2), 'outputs/submit_ic15/')
         
         text_box = cv2.resize(text_box, (text.shape[1], text.shape[0]))
         debug(idx, data_loader.img_paths, [[text_box]], 'outputs/vis_ic15/')

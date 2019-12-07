@@ -10,12 +10,39 @@ import torchvision.transforms as transforms
 import torch
 import pyclipper
 import Polygon as plg
+import math
 
 ic15_root_dir = './data/ICDAR2015/Challenge4/'
 ic15_train_data_dir = ic15_root_dir + 'ch4_training_images/'
 ic15_train_gt_dir = ic15_root_dir + 'ch4_training_localization_transcription_gt/'
 ic15_test_data_dir = ic15_root_dir + 'ch4_test_images/'
 ic15_test_gt_dir = ic15_root_dir + 'ch4_test_localization_transcription_gt/'
+
+ic17_train_data_dir = "/home/root1/dataSet_wwl/MLT2017/training_images/"
+ic17_train_gt_dir = "/home/root1/dataSet_wwl/MLT2017/training_gt/"
+
+ic19MLT_train_data_dir = "/home/root1/dataSet_wwl/MLT2019/training_images/"
+ic19MLT_train_gt_dir = "/home/root1/dataSet_wwl/MLT2019/training_gt/"
+
+sroie2019_train_data_dir = "./data/SROIE2019/training_images/"
+sroie2019_train_gt_dir = "./data/SROIE2019/training_localization_transcription_gt/"
+
+#vat_train_data_dir = "./data/VAT/training_images/"
+#vat_train_gt_dir = "./data/VAT/training_gt/"
+vat_train_data_dir = "/home/root1/dataSet_wwl/Vat_True_Data/training_images/"
+vat_train_gt_dir = "/home/root1/dataSet_wwl/Vat_True_Data/training_gt/"
+
+total_train_data_dir = "/home/root1/dataSet_wwl/Total/training_images/"
+total_train_gt_dir = "/home/root1/dataSet_wwl/Total/training_gt/"
+
+vin_train_data_dir = "./data/VIN/trainingNoGangYin_images/"
+vin_train_gt_dir = "./data/VIN/trainingNoGangYin_gt/"
+
+vinmp_train_data_dir = "./data/VIN/trainingM_images/"
+vinmp_train_gt_dir = "./data/VIN/trainingM_gt/"
+
+BusinessLic_train_data_dir = "./data/BusinessLic/training_images/"
+BusinessLic_train_gt_dir = "./data/BusinessLic/training_gt/"
 
 random.seed(123456)
 
@@ -24,8 +51,18 @@ def get_img(img_path):
         img = cv2.imread(img_path)
         img = img[:, :, [2, 1, 0]]
     except Exception as e:
-        print img_path
+        print (img_path)
         raise
+    return img
+
+def pad_img_to_32Int(img, fill_values =255):
+    h,w = img.shape[:2]
+    if w < h :        
+        len_shortage = int(math.ceil(w / 32.0) * 32) - w
+        img = np.pad(img,pad_width =[[0,0],[0,len_shortage],[0,0]], mode='constant', constant_values=fill_values)        
+    else:
+        len_shortage = int(math.ceil(h / 32.0) * 32) - h
+        img = np.pad(img,pad_width =[[0,len_shortage],[0,0],[0,0]], mode='constant', constant_values=fill_values)
     return img
 
 def get_bboxes(img, gt_path):
@@ -36,6 +73,8 @@ def get_bboxes(img, gt_path):
     for line in lines:
         line = util.str.remove_all(line, '\xef\xbb\xbf')
         gt = util.str.split(line, ',')
+        if(len(gt) < 8):
+            continue
         if gt[-1][0] == '#':
             tags.append(False)
         else:
@@ -70,6 +109,8 @@ def scale(img, long_size=2240):
 
 def random_scale(img, min_size):
     h, w = img.shape[0:2]
+	#if max(h, w) > 608:
+        #scale = 608.0 / max(h, w)
     if max(h, w) > 1280:
         scale = 1280.0 / max(h, w)
         img = cv2.resize(img, dsize=None, fx=scale, fy=scale)
@@ -161,6 +202,7 @@ class IC15Loader(data.Dataset):
         for data_dir, gt_dir in zip(data_dirs, gt_dirs):
             img_names = util.io.ls(data_dir, '.jpg')
             img_names.extend(util.io.ls(data_dir, '.png'))
+            img_names.extend(util.io.ls(data_dir, '.jpeg'))
             # img_names.extend(util.io.ls(data_dir, '.gif'))
 
             img_paths = []
@@ -170,6 +212,7 @@ class IC15Loader(data.Dataset):
                 img_paths.append(img_path)
                 
                 gt_name = 'gt_' + img_name.split('.')[0] + '.txt'
+                #gt_name = img_name.split('.')[0] + '.txt' # SROIE2019
                 gt_path = gt_dir + gt_name
                 gt_paths.append(gt_path)
 
@@ -183,6 +226,9 @@ class IC15Loader(data.Dataset):
         img_path = self.img_paths[index]
         gt_path = self.gt_paths[index]
 
+        if(os.path.exists(img_path) == False or os.path.exists(gt_path) == False):
+            print(img_path, gt_path)
+            return
         img = get_img(img_path)
         bboxes, tags = get_bboxes(img, gt_path)
         

@@ -12,7 +12,8 @@ import pyclipper
 import Polygon as plg
 
 ctw_root_dir = './data/CTW1500/'
-ctw_test_data_dir = ctw_root_dir + 'test/text_image/'
+#ctw_test_data_dir = ctw_root_dir + 'test/text_image/'
+ctw_test_data_dir = "./TestImgs/"
 
 random.seed(123456)
 

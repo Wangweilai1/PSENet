@@ -4,6 +4,7 @@
 #include "pybind11/stl_bind.h"
 
 #include <iostream>
+#include <algorithm>
 #include <queue>
 
 #include <opencv2/opencv.hpp>
@@ -32,7 +33,9 @@ namespace pse_adaptor {
     void growing_text_line(vector<Mat> &kernals, vector<vector<int>> &text_line, float min_area) {
         
         Mat label_mat;
-        int label_num = connectedComponents(kernals[kernals.size() - 1], label_mat, 4);
+        //int label_num = connectedComponents(kernals[kernals.size() - 1], label_mat, 4);
+        Mat stats, centroids;
+        int label_num = connectedComponentsWithStats(kernals[kernals.size() - 1], label_mat, stats, centroids, 4);
 
         // cout << "label num: " << label_num << endl;
         

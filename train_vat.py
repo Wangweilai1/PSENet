@@ -181,13 +181,19 @@ def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar
 
 def main(args):
     if args.checkpoint == '':
-        args.checkpoint = "checkpoints/ic15_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/ic15_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        args.checkpoint = "checkpoints/ic17_mlt_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/Total_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/VIN_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
+        #args.checkpoint = "checkpoints/BusinessLicense_%s_bs_%d_ep_%d"%(args.arch, args.batch_size, args.n_epoch)
     if args.pretrain:
         if 'synth' in args.pretrain:
             args.checkpoint += "_pretrain_synth"
         else:
             args.checkpoint += "_pretrain_ic17"
-
+    elif args.resume:
+        args.checkpoint += "_pretrain_ic17"
+        
     print ('checkpoint path: %s'%args.checkpoint)
     print ('init lr: %.8f'%args.lr)
     print ('schedule: ', args.schedule)
@@ -229,10 +235,6 @@ def main(args):
         model = models.resnet50_lstm(pretrained=True, num_classes=kernel_num)
     elif args.arch == "resnet50_aspp":
         model = models.resnet50_aspp(pretrained=True, num_classes=kernel_num)
-    elif args.arch == "resnet50_psp":
-        model = models.resnet50_psp(pretrained=True, num_classes=kernel_num)
-    elif args.arch == "resnet50_dcn_lstm":
-        model = models.resnet50_dcn_lstm(pretrained=True, num_classes=kernel_num)
     
     model = torch.nn.DataParallel(model).cuda()
     
@@ -279,9 +281,9 @@ def main(args):
     logger.close()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Hyperparams')
+    parser = argparse.ArgumentParser(description='Hyper params')
     parser.add_argument('--arch', nargs='?', type=str, default='resnet50')
-    parser.add_argument('--img_size', nargs='?', type=int, default=640, 
+    parser.add_argument('--img_size', nargs='?', type=int, default=480, 
                         help='Height of the input image')
     parser.add_argument('--n_epoch', nargs='?', type=int, default=600, 
                         help='# of the epochs')
