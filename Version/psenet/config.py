@@ -1,0 +1,30 @@
+# encoding: utf-8
+import os
+debug = True
+pwd = os.getcwd()
+yoloCfg = os.path.join(pwd,"./models/text.cfg")
+yoloWeights = os.path.join(pwd,"./models/text.weights")
+yoloData = os.path.join(pwd,"./models/text.data")
+darknetRoot = os.path.join(pwd,"darknet")
+darknet_so = 'libdarknet.so'
+GPU = True #选择是否是由GPU，设为False以使用CPU
+GPUID = 7#GPUID
+MAX_HORIZONTAL_GAP =30
+MIN_V_OVERLAPS = 0.8
+MIN_SIZE_SIM = 0.7
+TEXT_PROPOSALS_MIN_SCORE = 0.11
+#TEXT_PROPOSALS_MIN_SCORE = 0.3
+TEXT_PROPOSALS_NMS_THRESH = 0.2
+TEXT_LINE_NMS_THRESH = 0.8
+MIN_RATIO = 1
+LINE_MIN_SCORE =0.1
+TEXT_PROPOSALS_WIDTH=1
+MIN_NUM_PROPOSALS=1
+DETE_IMG_SIZE = 800
+DETE_BINARY_TH = 0.5
+DETE_MIN_AREA = 50.0
+DETE_MIN_SCORE = 0.60
+img_size = 608
+leftAdjust = True
+rightAdjust = True
+alph = 0.1
